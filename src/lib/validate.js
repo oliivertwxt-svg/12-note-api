@@ -1,6 +1,6 @@
-export function validate(schema) {
+export function validate(schema, source = "body") {
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
+    const result = schema.safeParse(req[source]);
     if (!result.success) {
       res.status(422).json({
         error: {
@@ -11,7 +11,7 @@ export function validate(schema) {
       return;
     }
 
-    req.body = result.data;
+    req[source] = result.data;
     next();
   };
 }
