@@ -1,0 +1,159 @@
+@baseUrl = http://localhost:3000
+@ownerEmail = notes-owner-{{$guid}}@example.test
+@otherEmail = notes-other-{{$guid}}@example.test
+# Generate an expired token with:
+# node --env-file=.env -e "const jwt=require('jsonwebtoken'); console.log(jwt.sign({sub:'expired-rest-client'}, process.env.JWT_SECRET, {algorithm:'HS256', expiresIn:-1}))"
+# Paste that command's output here before sending the expired-token request.
+@expiredToken = REPLACE_WITH_EXPIRED_HS256_TOKEN
+
+### Register
+# @name register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "REST Client Owner",
+  "email": "{{ownerEmail}}",
+  "password": "restclient123"
+}
+
+### Duplicate registration (409)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "REST Client Owner",
+  "email": "{{ownerEmail}}",
+  "password": "restclient123"
+}
+
+### Registration validation error (422)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "",
+  "email": "not-an-email",
+  "password": "short"
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}",
+  "password": "restclient123"
+}
+
+### Login failure (generic 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}",
+  "password": "wrong-password"
+}
+
+### Current user
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{login.response.body.token}}
+
+### Create a note
+# @name createNote
+POST {{baseUrl}}/api/notes
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "title": "REST Client note",
+  "body": "Created from requests.http",
+  "tags": ["demo", "rest-client"],
+  "pinned": false
+}
+
+### List and filter notes
+GET {{baseUrl}}/api/notes?q=REST&tag=demo&pinned=false&page=1&limit=10
+Authorization: Bearer {{login.response.body.token}}
+
+### Get a note
+GET {{baseUrl}}/api/notes/{{createNote.response.body.note.id}}
+Authorization: Bearer {{login.response.body.token}}
+
+### Update a note
+PATCH {{baseUrl}}/api/notes/{{createNote.response.body.note.id}}
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "title": "Updated REST Client note",
+  "pinned": true
+}
+
+### Notes validation error (422)
+POST {{baseUrl}}/api/notes
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "title": "",
+  "body": 42
+}
+
+### Invalid note ID (422)
+GET {{baseUrl}}/api/notes/not-a-uuid
+Authorization: Bearer {{login.response.body.token}}
+
+### Missing token (401)
+GET {{baseUrl}}/api/notes
+
+### Garbled token (401)
+GET {{baseUrl}}/api/notes
+Authorization: Bearer not.a.valid.token
+
+### Expired token (401, replace @expiredToken before sending)
+GET {{baseUrl}}/api/notes
+Authorization: Bearer {{expiredToken}}
+
+### Register another user
+# @name otherRegister
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "REST Client Other",
+  "email": "{{otherEmail}}",
+  "password": "otherclient123"
+}
+
+### Login as the other user
+# @name otherLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{otherEmail}}",
+  "password": "otherclient123"
+}
+
+### Another user's note is hidden (404, not 403)
+GET {{baseUrl}}/api/notes/{{createNote.response.body.note.id}}
+Authorization: Bearer {{otherLogin.response.body.token}}
+
+### Cannot update another user's note (404)
+PATCH {{baseUrl}}/api/notes/{{createNote.response.body.note.id}}
+Authorization: Bearer {{otherLogin.response.body.token}}
+Content-Type: application/json
+
+{
+  "title": "Unauthorized edit"
+}
+
+### Cannot delete another user's note (404)
+DELETE {{baseUrl}}/api/notes/{{createNote.response.body.note.id}}
+Authorization: Bearer {{otherLogin.response.body.token}}
+
+### Delete own note
+DELETE {{baseUrl}}/api/notes/{{createNote.response.body.note.id}}
+Authorization: Bearer {{login.response.body.token}}
